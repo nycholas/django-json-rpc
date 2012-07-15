@@ -96,4 +96,4 @@ class OtherError(Error):
   """ catchall error """
   code = 500
   message = _('Error missed by other execeptions')
-  status = 500
+  status = 200
