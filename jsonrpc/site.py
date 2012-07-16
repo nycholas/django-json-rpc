@@ -1,4 +1,4 @@
-import datetime, decimal
+import re, datetime, decimal
 from functools import wraps
 from uuid import uuid1
 from jsonrpc._json import loads, dumps
@@ -90,6 +90,12 @@ class JSONRPCSite(object):
 
   def register(self, name, method):
     self.urls[unicode(name)] = method
+
+  def extract_id_request(self, raw_data):
+    if not raw_data is None and raw_data.find('id') != -1:
+      find_id = re.findall(r'["|\']id["|\']:["|\'](.+?)["|\']', raw_data, re.U)
+      return find_id[0] if find_id else None
+    return None
   
   def empty_response(self, version='1.0'):
     resp = {'id': None}
@@ -100,7 +106,7 @@ class JSONRPCSite(object):
       resp['jsonrpc'] = version
     resp.update({'error': None, 'result': None})
     return resp
-  
+
   def validate_get(self, request, method):
     encode_get_params = lambda r: dict([(k, v[0] if len(v) == 1 else v)
                                          for k, v in r])
@@ -198,9 +204,10 @@ class JSONRPCSite(object):
     from django.http import HttpResponse
     json_encoder = json_encoder or self.json_encoder
 
+    # in case we do something json doesn't like, we always get back valid json-rpc response
+    response = self.empty_response()
+    
     try:
-      # in case we do something json doesn't like, we always get back valid json-rpc response
-      response = self.empty_response()
       if request.method.lower() == 'get':
         valid, D = self.validate_get(request, method)
         if not valid:
@@ -221,22 +228,26 @@ class JSONRPCSite(object):
         response, status = self.response_dict(request, D, json_encoder=json_encoder)
         if response is None and (not u'id' in D or D[u'id'] is None): # a notification
           return HttpResponse('', status=status)
-      
-      json_rpc = dumps(response, cls=json_encoder)
     except Error, e:
       signals.got_request_exception.send(sender=self.__class__, request=request)
+
       response['error'] = e.json_rpc_format
       status = e.status
-      json_rpc = dumps(response, cls=json_encoder)
     except Exception, e:
       # exception missed by others
-      signals.got_request_exception.send(sender=self.__class__, request=request)
+      signals.got_request_exception.send(sender=self.__class__, request=request)      
+
       other_error = OtherError(e)
+
       response['result'] = None
       response['error'] = other_error.json_rpc_format
-      status = other_error.status    
-      
-      json_rpc = dumps(response,cls=json_encoder)
+      status = other_error.status
+    
+    # extract id the request
+    json_request_id = self.extract_id_request(request.raw_post_data)
+    response['id'] = json_request_id
+
+    json_rpc = dumps(response, cls=json_encoder)
     
     return HttpResponse(json_rpc, status=status, content_type='application/json-rpc')
   
