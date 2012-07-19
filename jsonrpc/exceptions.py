@@ -18,7 +18,7 @@ class Error(Exception):
   code = 0
   message = None
   data = None
-  status = 500
+  status = 200
   
   def __init__(self, message=None):
     """ Setup the Exception and overwrite the default message """
