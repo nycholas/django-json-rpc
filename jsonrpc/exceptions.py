@@ -59,13 +59,11 @@ class InvalidRequestError(Error):
   """ The received JSON is not a valid JSON-RPC Request. """
   code = -32600
   message = _('Invalid Request.')
-  status = 400
   
 class MethodNotFoundError(Error):
   """ The requested remote-procedure does not exist / is not available. """
   code = -32601
   message = _('Method not found.')
-  status = 404
   
 class InvalidParamsError(Error):
   """ Invalid method parameters. """
